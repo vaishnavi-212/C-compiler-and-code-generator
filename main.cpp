@@ -35,7 +35,8 @@ int main()
         cout << "3. Run Lexer\n";
         cout << "4. Run Parser\n";
         cout << "5. Run Lexer + Parser\n";
-        cout << "6. Exit\n";
+        cout << "6. Display Symbol Table\n";
+        cout << "7. Exit\n";
 
         cout << "==============================================\n";
 
@@ -43,11 +44,10 @@ int main()
 
         cout << "Enter your choice: ";
         cin >> choice;
-
         cin.ignore();
 
         // ====================================================
-        // OPTION 1 - WRITE CODE
+        // OPTION 1
         // ====================================================
 
         if (choice == 1)
@@ -77,7 +77,7 @@ int main()
         }
 
         // ====================================================
-        // OPTION 2 - DISPLAY CODE
+        // OPTION 2
         // ====================================================
 
         else if (choice == 2)
@@ -136,9 +136,6 @@ int main()
                 cout << "\nPlease enter C code first.\n";
                 continue;
             }
-
-            // Parser requires tokens,
-            // so lexical analysis happens first.
 
             Lexer lexer(sourceCode);
 
@@ -203,10 +200,47 @@ int main()
         }
 
         // ====================================================
-        // OPTION 6 - EXIT
+        // OPTION 6 - SYMBOL TABLE
         // ====================================================
 
         else if (choice == 6)
+        {
+            if (!codeExists)
+            {
+                cout << "\nPlease enter C code first.\n";
+                continue;
+            }
+
+            // Run parser first so declarations
+            // are inserted into symbol table.
+
+            Lexer lexer(sourceCode);
+
+            tokens = lexer.tokenize();
+
+            if (checkLexicalErrors(tokens))
+            {
+                cout << "\nCannot create symbol table because lexical errors exist.\n";
+                continue;
+            }
+
+            Parser parser(tokens);
+
+            if (parser.parse())
+            {
+                symbolTable.display();
+            }
+            else
+            {
+                cout << "\nSymbol table cannot be displayed because parsing failed.\n";
+            }
+        }
+
+        // ====================================================
+        // OPTION 7 - EXIT
+        // ====================================================
+
+        else if (choice == 7)
         {
             cout << "\nExiting C Compiler...\n";
             cout << "Thank you!\n";
@@ -214,13 +248,9 @@ int main()
             break;
         }
 
-        // ====================================================
-        // INVALID OPTION
-        // ====================================================
-
         else
         {
-            cout << "\nInvalid choice. Please enter 1-6.\n";
+            cout << "\nInvalid choice. Please enter 1-7.\n";
         }
     }
 

@@ -4,24 +4,18 @@
 
 using namespace std;
 
-// lexer.cpp is included before this file from main.cpp,
-// so Token, TokenType and other lexer definitions are available.
-
 // ============================================================
 // PARSER
 // ============================================================
 
 class Parser
 {
+
 private:
 
     vector<Token> tokens;
     int current;
     bool syntaxError;
-
-    // --------------------------------------------------------
-    // BASIC PARSER FUNCTIONS
-    // --------------------------------------------------------
 
     Token peek()
     {
@@ -78,10 +72,6 @@ private:
         return false;
     }
 
-    // --------------------------------------------------------
-    // ERROR
-    // --------------------------------------------------------
-
     void error(const string& message)
     {
         if (syntaxError)
@@ -90,7 +80,6 @@ private:
         syntaxError = true;
 
         cout << "\n[SYNTAX ERROR]\n";
-
         cout << "Line " << peek().line << ": "
              << message << "\n";
 
@@ -98,10 +87,6 @@ private:
              << peek().value
              << "'\n";
     }
-
-    // --------------------------------------------------------
-    // DATA TYPE
-    // --------------------------------------------------------
 
     bool isType()
     {
@@ -135,7 +120,6 @@ private:
 
     void statement()
     {
-        // Function definition
         if (isType())
         {
             if (current + 2 < (int)tokens.size() &&
@@ -152,35 +136,30 @@ private:
             return;
         }
 
-        // if
         if (checkValue("if"))
         {
             ifStatement();
             return;
         }
 
-        // while
         if (checkValue("while"))
         {
             whileStatement();
             return;
         }
 
-        // for
         if (checkValue("for"))
         {
             forStatement();
             return;
         }
 
-        // return
         if (checkValue("return"))
         {
             returnStatement();
             return;
         }
 
-        // Block
         if (match(TokenType::LBRACE))
         {
             while (!check(TokenType::RBRACE) &&
@@ -198,7 +177,6 @@ private:
             return;
         }
 
-        // Assignment
         if (check(TokenType::IDENTIFIER))
         {
             assignment();
@@ -214,24 +192,31 @@ private:
 
     void functionDefinition()
     {
-        // Return type
+        string returnType = peek().value;
+
         advance();
 
-        // Function name
         if (!match(TokenType::IDENTIFIER))
         {
             error("Expected function name.");
             return;
         }
 
-        // (
+        string functionName = previous().value;
+
+        // Add function to symbol table
+        symbolTable.insert(
+            functionName,
+            returnType + " function",
+            previous().line
+        );
+
         if (!match(TokenType::LPAREN))
         {
             error("Expected '(' after function name.");
             return;
         }
 
-        // PARAMETERS
         if (!check(TokenType::RPAREN))
         {
             while (true)
@@ -242,6 +227,8 @@ private:
                     return;
                 }
 
+                string parameterType = peek().value;
+
                 advance();
 
                 if (!match(TokenType::IDENTIFIER))
@@ -250,26 +237,31 @@ private:
                     return;
                 }
 
+                string parameterName = previous().value;
+
+                symbolTable.insert(
+                    parameterName,
+                    parameterType,
+                    previous().line
+                );
+
                 if (!match(TokenType::COMMA))
                     break;
             }
         }
 
-        // )
         if (!match(TokenType::RPAREN))
         {
             error("Expected ')' after function parameters.");
             return;
         }
 
-        // {
         if (!match(TokenType::LBRACE))
         {
             error("Expected '{' before function body.");
             return;
         }
 
-        // Function body
         while (!check(TokenType::RBRACE) &&
                !isAtEnd() &&
                !syntaxError)
@@ -277,7 +269,6 @@ private:
             statement();
         }
 
-        // }
         if (!match(TokenType::RBRACE))
         {
             error("Expected '}' after function body.");
@@ -290,23 +281,30 @@ private:
 
     void declaration()
     {
-        // Data type
+        string dataType = peek().value;
+
         advance();
 
-        // First identifier
         if (!match(TokenType::IDENTIFIER))
         {
             error("Expected identifier after data type.");
             return;
         }
 
-        // Optional initialization
+        string variableName = previous().value;
+
+        // INSERT INTO SYMBOL TABLE
+        symbolTable.insert(
+            variableName,
+            dataType,
+            previous().line
+        );
+
         if (match(TokenType::ASSIGN))
         {
             expression();
         }
 
-        // Additional variables
         while (match(TokenType::COMMA))
         {
             if (!match(TokenType::IDENTIFIER))
@@ -315,13 +313,20 @@ private:
                 return;
             }
 
+            string variableName2 = previous().value;
+
+            symbolTable.insert(
+                variableName2,
+                dataType,
+                previous().line
+            );
+
             if (match(TokenType::ASSIGN))
             {
                 expression();
             }
         }
 
-        // ;
         if (!match(TokenType::SEMICOLON))
         {
             error("Expected ';' after declaration.");
@@ -340,7 +345,6 @@ private:
             return;
         }
 
-        // x++
         if (match(TokenType::INCREMENT))
         {
             if (!match(TokenType::SEMICOLON))
@@ -349,7 +353,6 @@ private:
             return;
         }
 
-        // x--
         if (match(TokenType::DECREMENT))
         {
             if (!match(TokenType::SEMICOLON))
@@ -358,7 +361,6 @@ private:
             return;
         }
 
-        // x = expression
         if (!match(TokenType::ASSIGN))
         {
             error("Expected '=' after identifier.");
@@ -442,12 +444,12 @@ private:
             return;
         }
 
-        // INITIALIZATION
-
         if (!check(TokenType::SEMICOLON))
         {
             if (isType())
             {
+                string dataType = peek().value;
+
                 advance();
 
                 if (!match(TokenType::IDENTIFIER))
@@ -455,6 +457,14 @@ private:
                     error("Expected identifier in for initialization.");
                     return;
                 }
+
+                string variableName = previous().value;
+
+                symbolTable.insert(
+                    variableName,
+                    dataType,
+                    previous().line
+                );
 
                 if (match(TokenType::ASSIGN))
                 {
@@ -485,8 +495,6 @@ private:
             return;
         }
 
-        // CONDITION
-
         if (!check(TokenType::SEMICOLON))
         {
             expression();
@@ -497,8 +505,6 @@ private:
             error("Expected ';' after for condition.");
             return;
         }
-
-        // INCREMENT
 
         if (!check(TokenType::RPAREN))
         {
@@ -525,8 +531,6 @@ private:
                 expression();
             }
         }
-
-        // )
 
         if (!match(TokenType::RPAREN))
         {
@@ -557,17 +561,13 @@ private:
     }
 
     // ========================================================
-    // EXPRESSION
+    // EXPRESSIONS
     // ========================================================
 
     void expression()
     {
         logicalExpression();
     }
-
-    // ========================================================
-    // LOGICAL EXPRESSION
-    // ========================================================
 
     void logicalExpression()
     {
@@ -579,10 +579,6 @@ private:
             relationalExpression();
         }
     }
-
-    // ========================================================
-    // RELATIONAL EXPRESSION
-    // ========================================================
 
     void relationalExpression()
     {
@@ -599,10 +595,6 @@ private:
         }
     }
 
-    // ========================================================
-    // ARITHMETIC EXPRESSION
-    // ========================================================
-
     void arithmeticExpression()
     {
         term();
@@ -613,10 +605,6 @@ private:
             term();
         }
     }
-
-    // ========================================================
-    // TERM
-    // ========================================================
 
     void term()
     {
@@ -630,33 +618,23 @@ private:
         }
     }
 
-    // ========================================================
-    // FACTOR
-    // ========================================================
-
     void factor()
     {
-        // Number
         if (match(TokenType::INTEGER))
             return;
 
-        // Float
         if (match(TokenType::FLOAT_NUMBER))
             return;
 
-        // Identifier
         if (match(TokenType::IDENTIFIER))
             return;
 
-        // String
         if (match(TokenType::STRING))
             return;
 
-        // Character
         if (match(TokenType::CHARACTER))
             return;
 
-        // ( expression )
         if (match(TokenType::LPAREN))
         {
             expression();
@@ -669,14 +647,12 @@ private:
             return;
         }
 
-        // Unary -
         if (match(TokenType::MINUS))
         {
             factor();
             return;
         }
 
-        // !
         if (match(TokenType::NOT))
         {
             factor();

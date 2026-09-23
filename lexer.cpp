@@ -2,7 +2,6 @@
 #include <vector>
 #include <string>
 #include <unordered_set>
-#include <cctype>
 
 using namespace std;
 
@@ -66,6 +65,75 @@ struct Token
 };
 
 // ============================================================
+// DYNAMIC ARRAY
+// ============================================================
+
+template <typename T>
+class DynamicArray
+{
+private:
+
+    T* data;
+    int capacity;
+    int size;
+
+    void resize()
+    {
+        capacity *= 2;
+
+        T* newData = new T[capacity];
+
+        for (int i = 0; i < size; i++)
+        {
+            newData[i] = data[i];
+        }
+
+        delete[] data;
+        data = newData;
+    }
+
+public:
+
+    DynamicArray()
+    {
+        capacity = 10;
+        size = 0;
+        data = new T[capacity];
+    }
+
+    ~DynamicArray()
+    {
+        delete[] data;
+    }
+
+    void pushBack(const T& value)
+    {
+        if (size >= capacity)
+        {
+            resize();
+        }
+
+        data[size] = value;
+        size++;
+    }
+
+    int getSize() const
+    {
+        return size;
+    }
+
+    T& operator[](int index)
+    {
+        return data[index];
+    }
+
+    const T& operator[](int index) const
+    {
+        return data[index];
+    }
+};
+
+// ============================================================
 // TOKEN TYPE TO STRING
 // ============================================================
 
@@ -119,6 +187,184 @@ string tokenTypeToString(TokenType type)
 }
 
 // ============================================================
+// SYMBOL TABLE
+// HASH TABLE WITH CUSTOM HASH FUNCTION
+// ============================================================
+
+struct Symbol
+{
+    string name;
+    string type;
+    int line;
+};
+
+class SymbolTable
+{
+private:
+
+    // Node for separate chaining
+    struct Node
+    {
+        Symbol symbol;
+        Node* next;
+
+        Node(const Symbol& s)
+        {
+            symbol = s;
+            next = nullptr;
+        }
+    };
+
+    static const int TABLE_SIZE = 101;
+
+    Node* table[TABLE_SIZE];
+
+    // --------------------------------------------------------
+    // CUSTOM HASH FUNCTION
+    // --------------------------------------------------------
+
+    int hashFunction(const string& name)
+    {
+        unsigned long hash = 5381;
+
+        for (char c : name)
+        {
+            hash = ((hash << 5) + hash) + c;
+        }
+
+        return hash % TABLE_SIZE;
+    }
+
+public:
+
+    SymbolTable()
+    {
+        for (int i = 0; i < TABLE_SIZE; i++)
+        {
+            table[i] = nullptr;
+        }
+    }
+
+    ~SymbolTable()
+    {
+        for (int i = 0; i < TABLE_SIZE; i++)
+        {
+            Node* current = table[i];
+
+            while (current != nullptr)
+            {
+                Node* temp = current;
+                current = current->next;
+                delete temp;
+            }
+        }
+    }
+
+    // --------------------------------------------------------
+    // INSERT SYMBOL
+    // --------------------------------------------------------
+
+    void insert(const string& name,
+                const string& type,
+                int line)
+    {
+        int index = hashFunction(name);
+
+        Node* current = table[index];
+
+        // Check whether symbol already exists
+        while (current != nullptr)
+        {
+            if (current->symbol.name == name)
+            {
+                return;
+            }
+
+            current = current->next;
+        }
+
+        Symbol symbol;
+        symbol.name = name;
+        symbol.type = type;
+        symbol.line = line;
+
+        Node* newNode = new Node(symbol);
+
+        newNode->next = table[index];
+        table[index] = newNode;
+    }
+
+    // --------------------------------------------------------
+    // SEARCH SYMBOL
+    // --------------------------------------------------------
+
+    bool search(const string& name)
+    {
+        int index = hashFunction(name);
+
+        Node* current = table[index];
+
+        while (current != nullptr)
+        {
+            if (current->symbol.name == name)
+            {
+                return true;
+            }
+
+            current = current->next;
+        }
+
+        return false;
+    }
+
+    // --------------------------------------------------------
+    // DISPLAY SYMBOL TABLE
+    // --------------------------------------------------------
+
+    void display()
+    {
+        cout << "\n";
+        cout << "=====================================================\n";
+        cout << "                  SYMBOL TABLE\n";
+        cout << "=====================================================\n\n";
+
+        cout << "Name\t\tType\t\tLine\n";
+        cout << "-----------------------------------------------------\n";
+
+        bool empty = true;
+
+        for (int i = 0; i < TABLE_SIZE; i++)
+        {
+            Node* current = table[i];
+
+            while (current != nullptr)
+            {
+                empty = false;
+
+                cout << current->symbol.name
+                     << "\t\t"
+                     << current->symbol.type
+                     << "\t\t"
+                     << current->symbol.line
+                     << "\n";
+
+                current = current->next;
+            }
+        }
+
+        if (empty)
+        {
+            cout << "Symbol table is empty.\n";
+        }
+
+        cout << "-----------------------------------------------------\n";
+    }
+};
+
+// Global symbol table
+SymbolTable symbolTable;
+
+// ============================================================
 // LEXER
 // ============================================================
 
@@ -127,7 +373,9 @@ class Lexer
 private:
 
     string source;
-    vector<Token> tokens;
+
+    // OUR DYNAMIC ARRAY
+    DynamicArray<Token> tokens;
 
     int position;
     int line;
@@ -166,7 +414,7 @@ private:
 
     void addToken(TokenType type, const string& value)
     {
-        tokens.push_back({type, value, line});
+        tokens.pushBack({type, value, line});
     }
 
     // --------------------------------------------------------
@@ -183,9 +431,13 @@ private:
         }
 
         if (keywords.count(word))
+        {
             addToken(TokenType::KEYWORD, word);
+        }
         else
+        {
             addToken(TokenType::IDENTIFIER, word);
+        }
     }
 
     // --------------------------------------------------------
@@ -280,7 +532,6 @@ private:
 
     void skipComment()
     {
-        // Single-line comment
         if (peek() == '/' && peek(1) == '/')
         {
             advance();
@@ -292,7 +543,6 @@ private:
             return;
         }
 
-        // Multi-line comment
         if (peek() == '/' && peek(1) == '*')
         {
             advance();
@@ -415,21 +665,18 @@ public:
 
                     advance();
                     addToken(TokenType::MULTIPLY, "*");
-
                     break;
 
                 case '/':
 
                     advance();
                     addToken(TokenType::DIVIDE, "/");
-
                     break;
 
                 case '%':
 
                     advance();
                     addToken(TokenType::MODULO, "%");
-
                     break;
 
                 case '=':
@@ -532,56 +779,48 @@ public:
 
                     advance();
                     addToken(TokenType::LPAREN, "(");
-
                     break;
 
                 case ')':
 
                     advance();
                     addToken(TokenType::RPAREN, ")");
-
                     break;
 
                 case '{':
 
                     advance();
                     addToken(TokenType::LBRACE, "{");
-
                     break;
 
                 case '}':
 
                     advance();
                     addToken(TokenType::RBRACE, "}");
-
                     break;
 
                 case '[':
 
                     advance();
                     addToken(TokenType::LBRACKET, "[");
-
                     break;
 
                 case ']':
 
                     advance();
                     addToken(TokenType::RBRACKET, "]");
-
                     break;
 
                 case ';':
 
                     advance();
                     addToken(TokenType::SEMICOLON, ";");
-
                     break;
 
                 case ',':
 
                     advance();
                     addToken(TokenType::COMMA, ",");
-
                     break;
 
                 default:
@@ -592,14 +831,21 @@ public:
                     );
 
                     advance();
-
                     break;
             }
         }
 
         addToken(TokenType::END_OF_FILE, "EOF");
 
-        return tokens;
+        // Convert dynamic array to vector for parser
+        vector<Token> result;
+
+        for (int i = 0; i < tokens.getSize(); i++)
+        {
+            result.push_back(tokens[i]);
+        }
+
+        return result;
     }
 };
 
