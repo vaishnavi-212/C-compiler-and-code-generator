@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini Compiler</title>
+<style>
+  body { font-family: sans-serif; margin: 16px; max-width: 1100px; }
+  h1 { font-size: 20px; margin: 0 0 10px; }
+  .bar { margin-bottom: 8px; }
+  textarea, pre { font-family: Consolas, monospace; font-size: 13px; }
+  textarea { width: 100%; height: 260px; box-sizing: border-box; }
+  pre { border: 1px solid #999; padding: 8px; height: 360px; overflow: auto; margin: 0; background: #f7f7f7; white-space: pre; }
+  .tabs button { padding: 4px 10px; border: 1px solid #999; border-bottom: none; background: #eee; cursor: pointer; }
+  .tabs button.on { background: #f7f7f7; font-weight: bold; }
+</style>
+</head>
+<body>
+<h1>Mini Compiler (C subset &rarr; three-address code)</h1>
+
+<div class="bar">
+  Example: <select id="ex"></select>
+  &nbsp; Front end:
+  <select id="mode">
+    <option value="rd">Hand-written (recursive descent)</option>
+    <option value="yacc">Lex / Yacc</option>
+  </select>
+  &nbsp; <label><input type="checkbox" id="opt" checked> Optimise</label>
+  &nbsp; <button id="go">Compile</button>
+</div>
+
+<textarea id="src" spellcheck="false"></textarea>
+
+<div class="tabs" id="tabs"></div>
+<pre id="out">Press Compile.</pre>
+
+<script>
+var TABS = [["tokens","Tokens"],["tree","Syntax tree"],["derivation","Derivation"],["symbols","Symbol table"],
+            ["ir","IR"],["cfg","Flow graph"],["optimised","Optimised IR"],["run","Run"]];
+var results = {}, current = "tokens";
+var $ = function (id) { return document.getElementById(id); };
+
+function show() {
+  $("out").textContent = results[current] || "Press Compile.";
+  var btns = $("tabs").children;
+  for (var i = 0; i < btns.length; i++) btns[i].className = TABS[i][0] === current ? "on" : "";
+}
+TABS.forEach(function (t) {
+  var b = document.createElement("button");
+  b.textContent = t[1];
+  b.onclick = function () { current = t[0]; show(); };
+  $("tabs").appendChild(b);
+});
+
+function compile() {
+  $("out").textContent = "Compiling...";
+  fetch("/api/compile", { method: "POST", body: JSON.stringify({
+    code: $("src").value, mode: $("mode").value, optimise: $("opt").checked }) })
+    .then(function (r) { return r.json(); })
+    .then(function (r) { results = r; show(); })
+    .catch(function (e) { $("out").textContent = "Error: " + e; });
+}
+$("go").onclick = compile;
+$("src").addEventListener("keydown", function (e) { if (e.ctrlKey && e.key === "Enter") compile(); });
+
+var examples = [];
+fetch("/api/examples").then(function (r) { return r.json(); }).then(function (list) {
+  examples = list;
+  list.forEach(function (e, i) {
+    var o = document.createElement("option");
+    o.value = i; o.textContent = e.name; $("ex").appendChild(o);
+  });
+  $("ex").onchange = function () { $("src").value = examples[$("ex").value].code; compile(); };
+  $("ex").value = Math.min(1, list.length - 1);
+  $("ex").onchange();
+});
+</script>
+</body>
+</html>
